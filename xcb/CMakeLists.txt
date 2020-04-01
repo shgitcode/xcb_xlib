@@ -18,7 +18,8 @@ INCLUDE_DIRECTORIES(include)
 set(LINK_LIB_LIST xcb)
 
 # «∑Ò”–libxcb-shmø‚
-find_library(use-shm xcb-shm /usr/lib /usr/local/lib NO_DEFAULT_PATH)
+#find_library(use-shm xcb-shm /usr/lib /usr/local/lib NO_DEFAULT_PATH)
+find_library(use-shm xcb-shm)
 
 if(NOT use-shm)
 	message(warning  "libxcb-shm not found")
