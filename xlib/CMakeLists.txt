@@ -9,15 +9,28 @@ add_compile_options(-std=c++11)
 
 project(X11Cap VERSION 0.3.11)
 
-INCLUDE_DIRECTORIES(include)
+#头文件
+set(INCLUDE
+	include
+	${PROJECT_SOURCE_DIR}/../common/include/
+	${PROJECT_SOURCE_DIR}/../3rdparty/include/libyuv/
+	${PROJECT_SOURCE_DIR}/../utils/include/
+    ${PROJECT_SOURCE_DIR}/include/
+)
+INCLUDE_DIRECTORIES(${INCLUDE})
 
+# utils library
+set(YUVCONVERT_LIBRARYDIR "${PROJECT_SOURCE_DIR}/../build/utils/")
+
+#源文件
 set(SRC  
     ${PROJECT_SOURCE_DIR}/src/X11Input.cpp
 )
 # 库
 #link_directories(${PROJECT_SOURCE_DIR})
 add_library(xlibCap SHARED ${SRC})
-target_link_libraries(xlibCap 
+target_link_libraries(xlibCap
+	${YUVCONVERT_LIBRARYDIR}/libconvertyuv.so
 	X11 Xfixes Xext Xi Xinerama
 	stdc++ pthread)
 

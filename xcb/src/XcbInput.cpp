@@ -1,35 +1,4 @@
-/*
-Copyright (c) 2012-2020 Maarten Baert <maarten-baert@hotmail.com>
 
-This file contains code from x11grab.c (part of ffmpeg/libav). The copyright information for x11grab.c is:
->> FFmpeg/Libav integration:
->> Copyright (C) 2006 Clemens Fruhwirth <clemens@endorphin.org>
->>                    Edouard Gomez <ed.gomez@free.fr>
->>
->> This file contains code from grab.c:
->> Copyright (c) 2000-2001 Fabrice Bellard
->>
->> This file contains code from the xvidcap project:
->> Copyright (C) 1997-1998 Rasca, Berlin
->>               2003-2004 Karl H. Beckers, Frankfurt
-
-This file is part of SimpleScreenRecorder.
-
-SimpleScreenRecorder is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-SimpleScreenRecorder is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with SimpleScreenRecorder.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-#include <time.h>
 
 #include "XcbInput.h"
 
@@ -48,7 +17,7 @@ along with SimpleScreenRecorder.  If not, see <http://www.gnu.org/licenses/>.
 
 #define FOLLOW_CENTER -1
 #define FRAME_RATE 1
-#define OPEN_FILE 0
+#define OPEN_FILE 1
 
 XcbInput::XcbInput(unsigned int x, 
 	                   unsigned int y, 
@@ -82,8 +51,8 @@ XcbInput::XcbInput(unsigned int x,
 	m_xcb_conn = NULL;
 	m_xcb_screen = NULL;
 	m_xcb_buffer = nullptr;
-	m_xcb_img = nullptr;
-
+	m_xcb_frame = nullptr;
+   
 	m_screen_bbox = Rect(m_x, m_y, m_x + m_width, m_y + m_height);
 
 	{
@@ -121,10 +90,10 @@ XcbInput::XcbInput(unsigned int x,
 
 	// open file
 	#if OPEN_FILE
-	m_fp = fopen("xcbCap.yuv", "wb");
+	m_fp = fopen("xcb.rgb", "wb");
 	if (m_fp == NULL) {
 		m_fp = nullptr;
-		std::cout<<" open cap.yuv error!"<<std::endl;
+		std::cout<<" open xcb.yuv error!"<<std::endl;
 	}
 	#endif
 
@@ -232,13 +201,6 @@ void XcbInput::InputThread() {
 			// increase the frame counter
 			++m_frame_counter;
 
-#if OPEN_FILE
-			// push the frame
-			//uint8_t *image_data = (uint8_t*) m_x11_image->data;
-			//int image_stride = m_x11_image->bytes_per_line;
-			// write file
-			//fwrite(m_x11_image->data, 1, m_x11_image->width*m_x11_image->height*m_x11_image->bits_per_pixel/8, m_fp);
-#endif
 			ReadVideoFrame(timestamp);
 			last_timestamp = timestamp;
 			//int64_t timestamp0 = hrt_time_micro();
@@ -252,7 +214,7 @@ void XcbInput::InputThread() {
 		}
 
         std::cout<<"[XcbInput::InputThread] "
-			     <<"Input thread stopped..count: "
+			     <<"Input thread stopped..frame count: "
 			     <<m_frame_counter<<std::endl;
 	} catch(const std::exception& e) {
 		m_error_occurred = true;
@@ -400,43 +362,56 @@ int XcbInput::check_position(int *pix_fmt)
     }
 
 	*pix_fmt = 0;
+	m_stride_line = 0;
 
     // 本机器上depth:24
     while (length--) {
         if (fmt->depth == geo->depth) {
             switch (geo->depth) {
             case 32:
-                if (fmt->bits_per_pixel == 32)
+                if (fmt->bits_per_pixel == 32) {
                     *pix_fmt = AV_PIX_FMT_0RGB;
+					m_stride_line = 4;
+                }
                 break;
             case 24:// bpp:32
-                if (fmt->bits_per_pixel == 32)
+                if (fmt->bits_per_pixel == 32){
                     *pix_fmt = AV_PIX_FMT_0RGB32;
-                else if (fmt->bits_per_pixel == 24)
+					m_stride_line = 4;
+                } else if (fmt->bits_per_pixel == 24) {
                     *pix_fmt = AV_PIX_FMT_RGB24;
+					m_stride_line = 3;
+                }
                 break;
             case 16:
-                if (fmt->bits_per_pixel == 16)
+                if (fmt->bits_per_pixel == 16) {
                     *pix_fmt = AV_PIX_FMT_RGB565;
+					m_stride_line = 2;
+                }
                 break;
             case 15:
-                if (fmt->bits_per_pixel == 16)
+                if (fmt->bits_per_pixel == 16) {
                     *pix_fmt = AV_PIX_FMT_RGB555;
+					m_stride_line = 2;
+                }
                 break;
             case 8:
-                if (fmt->bits_per_pixel == 8)
+                if (fmt->bits_per_pixel == 8) {
                     *pix_fmt = AV_PIX_FMT_RGB8;
+					m_stride_line = 1;
+                }
                 break;
             }
         }
 
-        if (*pix_fmt) {
-			
+        if (*pix_fmt) {	
 			m_bits_per_pixel = fmt->bits_per_pixel;
 			m_frame_size = m_width * m_height * fmt->bits_per_pixel / 8;
 
-			std::cout<< "Capture Input legth: "<< length
+			std::cout<< "Capture pixel format: "<< *pix_fmt
+				     << " Input legth: "<< length
 					 << " fmt depth: "<<fmt->depth
+					 << " stide line per_line: "<< m_stride_line
 					 << " bits_per_pixel: "<<m_bits_per_pixel
 					 << " frame size: "<<m_frame_size<<std::endl;
             ret = 0;
@@ -614,16 +589,17 @@ int XcbInput::xcbgrab_frame()
 		
 	if (!img)
 		return -1;
-		
-	//data   = xcb_get_image_data(img);
-	//m_xcb_frame_size = xcb_get_image_data_length(img);
-#if 0
-	if (m_xcb_frame==nullptr){
-		m_xcb_frame = new uint8_t[m_xcb_frame_size]; 
+
+    // 获取采样数据
+	data   = xcb_get_image_data(img);
+	m_frame_size = xcb_get_image_data_length(img);
+
+	if (m_xcb_frame == nullptr){
+		m_xcb_frame = new uint8_t[m_frame_size]; 
 	}
 
-	memcpy(m_xcb_frame, data, m_xcb_frame_size);
-#endif		
+	memcpy(m_xcb_frame, data, m_frame_size);
+	
 	free(img);
 		
 	return 0;
@@ -661,7 +637,7 @@ int XcbInput::xcbgrab_read_header()
 	std::cout<<"The screen number: "
 		     <<m_xcb_screen_num<<std::endl;
 
-    // 3. 检测范围
+    // 3. 检测范围,确定采集格式
     ret = check_position(&m_pix_fmt);
     if (ret < 0) {
         xcbgrab_read_close();
@@ -687,6 +663,11 @@ int XcbInput::xcbgrab_read_header()
     }
 #endif
 
+
+	if (m_yuv_convert == nullptr) {
+        m_yuv_convert = std::unique_ptr<yuvData>(new yuvData(m_width, m_height, AV_PIX_FMT_YUV420P));
+	 }
+
 	std::cout<<"Xcb use shm : "<<m_xcb_use_shm
 		     <<" Xcb record cursor : "<<m_record_cursor
 		     <<std::endl;
@@ -702,6 +683,7 @@ int XcbInput::xcbgrab_read_packet()
     xcb_query_pointer_reply_t *p  = NULL;// 记录鼠标移动位置？
     xcb_get_geometry_reply_t *geo = NULL;
     int ret = 0;
+	uint8_t *xcbData;
 
 	//int64_t timestamp = hrt_time_micro();
 
@@ -742,6 +724,20 @@ int XcbInput::xcbgrab_read_packet()
 	//int64_t timestamp2 = hrt_time_micro();
 
 	//std::cout<<"fixes time: "<<(timestamp2-timestamp1)<<std::endl;
+
+    if (m_xcb_use_shm) {
+		xcbData = m_xcb_buffer;
+	} else {
+		xcbData = m_xcb_frame;
+	}
+
+#if OPEN_FILE
+	// write file
+	fwrite(xcbData, 1, m_frame_size, m_fp);
+#endif
+
+    // AV_PIX_FMT_0RGB32
+	m_yuv_convert->convertToYuv(xcbData, m_stride_line*m_width, m_pix_fmt);
 
     free(p);
     free(geo);

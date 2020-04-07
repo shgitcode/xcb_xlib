@@ -1,25 +1,22 @@
-/*
-Copyright (c) 2012-2020 Maarten Baert <maarten-baert@hotmail.com>
-
-This file is part of SimpleScreenRecorder.
-
-SimpleScreenRecorder is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-SimpleScreenRecorder is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with SimpleScreenRecorder.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
 #pragma once
 #include "Global.h"
 #include "MutexDataPair.h"
+#include "convertYuv.h"
+
+#include <xcb/xcb.h>
+
+#ifdef CONFIG_LIBXCB_XFIXES
+#include <xcb/xfixes.h>
+#endif
+
+#ifdef CONFIG_LIBXCB_SHM
+#include <sys/shm.h>
+#include <xcb/shm.h>
+#endif
+
+#ifdef CONFIG_LIBXCB_SHAPE
+#include <xcb/shape.h>
+#endif
 
 class XcbInput  {
 
@@ -38,11 +35,14 @@ private:
 	unsigned int m_x, m_y, m_width, m_height;
 	bool m_record_cursor, m_follow_cursor, m_follow_fullscreen;
 
+    // 采集帧数
 	std::atomic<uint32_t> m_frame_counter;
+	// 帧率统计
 	int64_t m_fps_last_timestamp;
 	uint32_t m_fps_last_counter;
 	double m_fps_current;
 
+    // xcb属性
     xcb_connection_t *m_xcb_conn;
 	xcb_screen_t *m_xcb_screen;
 	int m_xcb_screen_num;
@@ -50,11 +50,20 @@ private:
 #ifdef CONFIG_LIBXCB_SHM
 	xcb_shm_seg_t m_xcb_segment;
 #endif
+
+    // 采用共享内存时，数据存储内存
 	uint8_t *m_xcb_buffer; // for shm
-	xcb_get_image_reply_t *m_xcb_img;
+	// 非共享内存的采集数据存储
+	uint8_t *m_xcb_frame;
+	
+	// 采集每个像素比特数
 	unsigned int m_bits_per_pixel;
+	// 采集长度
 	unsigned int m_frame_size;
+	// 采集格式
 	int m_pix_fmt;
+	// 每行长度
+	int m_stride_line;
 
 	bool m_xcb_use_shm;
 
@@ -68,7 +77,12 @@ private:
 	unsigned int m_video_frame_rate;
 	int64_t m_last_timestamp; // the timestamp of the last received video frame (for gap detection)
 	int64_t m_next_timestamp; // the preferred timestamp of the next frame (for rate control)
+
+	// 采集数据存储FD
 	FILE* m_fp;
+   
+	// 存储yuv数据
+	std::unique_ptr<yuvData> m_yuv_convert;
 
 public:
 	XcbInput(unsigned int x, unsigned int y, unsigned int width, unsigned int height, unsigned int frame_rate, bool record_cursor, bool follow_cursor, bool follow_fullscreen);
@@ -89,6 +103,12 @@ public:
 	// stop
 	void setStop(){m_should_stop = true;}
 
+public:
+	// save yuv
+	void setYuvData(std::unique_ptr<yuvData> &data);
+	uint8_t* getYuvData(bool &bIsStop);
+
+	
 private:
 	void Init();
 	int64_t CalculateNextVideoTimestamp();

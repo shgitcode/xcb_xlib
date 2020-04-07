@@ -1,25 +1,18 @@
-/*
-Copyright (c) 2012-2020 Maarten Baert <maarten-baert@hotmail.com>
-
-This file is part of SimpleScreenRecorder.
-
-SimpleScreenRecorder is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-SimpleScreenRecorder is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with SimpleScreenRecorder.  If not, see <http://www.gnu.org/licenses/>.
-*/
 
 #pragma once
 #include "Global.h"
 #include "MutexDataPair.h"
+#include "convertYuv.h"
+
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/extensions/Xfixes.h>
+#include <X11/extensions/Xinerama.h>
+#include <X11/extensions/XShm.h>
+#include <X11/extensions/XInput2.h>
+#include <X11/keysym.h>
+#include <X11/extensions/shape.h>
+
 
 class X11Input  {
 
@@ -66,6 +59,9 @@ private:
 	int64_t m_last_timestamp; // the timestamp of the last received video frame (for gap detection)
 	int64_t m_next_timestamp; // the preferred timestamp of the next frame (for rate control)
 	FILE* m_fp;
+
+	// ´æ´¢yuvÊý¾Ý
+	std::unique_ptr<yuvData> m_yuv_convert;
 
 public:
 	X11Input(unsigned int x, unsigned int y, unsigned int width, unsigned int height, unsigned int frame_rate, bool record_cursor, bool follow_cursor, bool follow_fullscreen);

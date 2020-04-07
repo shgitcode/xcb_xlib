@@ -31,7 +31,7 @@ int main(int argc, char* argv[])
                                    m_video_follow_full_screen));
 
 
-	std::this_thread::sleep_for(std::chrono::seconds(10));
+	std::this_thread::sleep_for(std::chrono::seconds(5));
 
 	m_xcb_input->setStop();
 	

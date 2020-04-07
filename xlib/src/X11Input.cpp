@@ -1,45 +1,7 @@
-/*
-Copyright (c) 2012-2020 Maarten Baert <maarten-baert@hotmail.com>
-
-This file contains code from x11grab.c (part of ffmpeg/libav). The copyright information for x11grab.c is:
->> FFmpeg/Libav integration:
->> Copyright (C) 2006 Clemens Fruhwirth <clemens@endorphin.org>
->>                    Edouard Gomez <ed.gomez@free.fr>
->>
->> This file contains code from grab.c:
->> Copyright (c) 2000-2001 Fabrice Bellard
->>
->> This file contains code from the xvidcap project:
->> Copyright (C) 1997-1998 Rasca, Berlin
->>               2003-2004 Karl H. Beckers, Frankfurt
-
-This file is part of SimpleScreenRecorder.
-
-SimpleScreenRecorder is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-SimpleScreenRecorder is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with SimpleScreenRecorder.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-#include <time.h>
 
 #include "X11Input.h"
 
 #define OPEN_FILE 1
-/*
-The code in this file is based on the MIT-SHM example code and the x11grab device in libav/ffmpeg (which is GPL):
-http://www.xfree86.org/current/mit-shm.html
-https://git.libav.org/?p=libav.git;a=blob;f=libavdevice/x11grab.c
-I am doing the recording myself instead of just using x11grab (as I originally planned) because this is more flexible.
-*/
 
 // Converts a X11 image format to a format that libav/ffmpeg understands.
 static AVPixelFormat X11ImageGetPixelFormat(XImage* image) {
@@ -233,12 +195,17 @@ X11Input::X11Input(unsigned int x,
 		throw;
 	}
 
+	if (m_yuv_convert == nullptr) {
+	    m_yuv_convert = std::unique_ptr<yuvData>(new yuvData(m_width, m_height, AV_PIX_FMT_YUV420P));
+	}
+	
+
 	// open file
 #if OPEN_FILE
-	m_fp = fopen("x11cap.yuv", "wb");
+	m_fp = fopen("x11.rgb", "wb");
 	if (m_fp == NULL) {
 		m_fp = nullptr;
-		std::cout<<" open cap.yuv error!"<<std::endl;
+		std::cout<<" open x11.yuv error!"<<std::endl;
 	}
 #endif
 }
@@ -518,6 +485,8 @@ void X11Input::ReadVideoFrame(int64_t timestamp){
 }
 
 #define FRAME_RATE 1
+// ffplay -pixel_format yuv420p -video_size 1280*720  -framerate 25  yuvconvert.yuv 
+// ffplay -pixel_format bgra -video_size 1280*720 -framerate 25 x11.rgb
 
 void X11Input::InputThread() {
 	try {
@@ -630,9 +599,13 @@ void X11Input::InputThread() {
 			int image_stride = m_x11_image->bytes_per_line;
 			//AV_PIX_FMT_BGRA
 			AVPixelFormat x11_image_format = X11ImageGetPixelFormat(m_x11_image);
+
+            // Êý¾Ý×ªYUV
+			m_yuv_convert->convertToYuv(image_data, image_stride, x11_image_format);
+
 			ReadVideoFrame(timestamp);
 			last_timestamp = timestamp;
-			if (m_frame_counter==0) {
+			if (m_frame_counter == 1) {
 				std::cout<<"[X11Input::InputThread] " 
 						 <<" counter : "<<m_frame_counter
 						 <<" AVPixelFormat: "<<x11_image_format

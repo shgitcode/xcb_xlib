@@ -2,9 +2,9 @@
 #https://blog.csdn.net/afei__/article/details/81201039?depth_1-utm_source=
 #distribute.pc_relevant.none-task&utm_source=distribute.pc_relevant.none-task
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.0)
 
-cmake_policy(VERSION 3.1)
+cmake_policy(VERSION 3.0)
 
 #C++11
 set(CMAKE_CXX_STANDARD 11)
@@ -12,7 +12,18 @@ set(CMAKE_CXX_STANDARD 11)
 project(XcbCap VERSION 0.3.11)
 
 #头文件
-INCLUDE_DIRECTORIES(include)
+set(INCLUDE
+	include
+	${PROJECT_SOURCE_DIR}/../common/include/
+	${PROJECT_SOURCE_DIR}/../3rdparty/include/libyuv/
+	${PROJECT_SOURCE_DIR}/../utils/include/
+    ${PROJECT_SOURCE_DIR}/include/
+)
+INCLUDE_DIRECTORIES(${INCLUDE})
+
+# utils library
+set(YUVCONVERT_LIBRARYDIR "${PROJECT_SOURCE_DIR}/../build/utils/")
+
 
 #XCb库变量
 set(LINK_LIB_LIST xcb)
@@ -42,6 +53,8 @@ else()
 	set(LINK_LIB_LIST ${LINK_LIB_LIST} ${use-xfixes})
 endif()
 
+message(XcbCap "${PROJECT_SOURCE_DIR}")
+
 #源文件
 set(SRC  
     ${PROJECT_SOURCE_DIR}/src/XcbInput.cpp
@@ -54,8 +67,9 @@ add_library(xcbLibCap SHARED ${SRC})
 #message(${WITH_XCB_XFIXES})
 
 message("xcb library : ${LINK_LIB_LIST}")
-
-target_link_libraries(xcbLibCap 
+#依赖关系
+target_link_libraries(xcbLibCap
+	${YUVCONVERT_LIBRARYDIR}/libconvertyuv.so
 	${LINK_LIB_LIST} xcb-shape
 	stdc++ pthread)
 
