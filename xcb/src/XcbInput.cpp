@@ -17,7 +17,7 @@
 
 #define FOLLOW_CENTER -1
 #define FRAME_RATE 1
-#define OPEN_FILE 1
+#define OPEN_FILE 0
 
 XcbInput::XcbInput(unsigned int x, 
 	                   unsigned int y, 
@@ -227,6 +227,10 @@ void XcbInput::InputThread() {
 		
         std::cout<<"[XcbInput::InputThread] "
 			     <<"Unknown exception in input thread."<<std::endl;
+	} 
+
+	if (m_yuv_convert) {
+		m_yuv_convert->setStop();
 	}
 }
 
@@ -737,7 +741,7 @@ int XcbInput::xcbgrab_read_packet()
 #endif
 
     // AV_PIX_FMT_0RGB32
-	m_yuv_convert->convertToYuv(xcbData, m_stride_line*m_width, m_pix_fmt);
+	m_yuv_convert->putData(xcbData, m_stride_line*m_width, m_pix_fmt);
 
     free(p);
     free(geo);

@@ -12,6 +12,7 @@ int main(int argc, char* argv[])
 	}
 
     std::unique_ptr<XcbInput> m_xcb_input = nullptr;
+	int m_sleep = 5;
 
     unsigned int m_video_x = 0;
 	unsigned int m_video_y = 0;
@@ -31,11 +32,13 @@ int main(int argc, char* argv[])
                                    m_video_follow_full_screen));
 
 
-	std::this_thread::sleep_for(std::chrono::seconds(5));
+	std::this_thread::sleep_for(std::chrono::seconds(m_sleep));
 
 	m_xcb_input->setStop();
 	
 	std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    std::cout<<"Xcb capture end!"<<0x8000000000000000ull<<":"<<0x8000000000000001ull<<std::endl;
+	std::cout<<"xcb capture frame: "<<m_xcb_input->GetFrameCounter()/m_sleep<<std::endl;
+
+    //std::cout<<"xcb capture end!"<<0x8000000000000000ull<<":"<<0x8000000000000001ull<<std::endl;
 }

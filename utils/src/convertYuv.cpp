@@ -7,8 +7,8 @@
 #include "convertYuv.h"
 
 yuvData::yuvData(unsigned int width, unsigned int height, int pix_fmt) {
-    m_width = width;
-	m_height = height;
+    m_width   = width;
+	m_height  = height;
 	m_pix_fmt = pix_fmt;
 
 	if (m_pix_fmt == AV_PIX_FMT_YUV420P) {
@@ -18,6 +18,22 @@ yuvData::yuvData(unsigned int width, unsigned int height, int pix_fmt) {
 
 	m_yuv_fd = nullptr;
 
+	m_thread = std::thread(&yuvData::convertThread,this);
+
+}
+
+yuvData::~yuvData() {
+	if(m_thread.joinable()) {
+		std::cout<<"[yuvData::~yuvData] "
+			     <<"Stopping input thread ..."
+			     <<std::endl;
+		m_should_stop = true;
+		m_thread.join();
+	}
+	
+	delete [] m_data;
+
+	closeFile();
 }
 
 void yuvData::convertToYuv(const uint8_t* src, int src_stride_line, int src_pixel_format){
@@ -156,7 +172,6 @@ void yuvData::saveFile(){
 
 	
 	fwrite(m_data, 1, m_size, m_yuv_fd);
-
 }
 
 void yuvData::closeFile(){
@@ -167,30 +182,56 @@ void yuvData::closeFile(){
 
 }
 
-
-#if 0
-void yuvData::setYuvData(std::unique_ptr<yuvData> &data) {
-	    std::unique_lock<std::mutex> yuv_lock(m_yuv_mutex); 
-
-		yuv_lock.lock();
-	    m_yuv_buffer.push_back(std::move(data));
+void yuvData::putData(uint8_t* src, int src_stride_line, int src_pixel_format){
+    if (m_should_stop) {
+        return;
 	}
 
+    if (m_data_queue.size() > m_queue_size) {
+	    std::unique_lock<std::mutex> lock(m_queue_mutex);
+		m_queue_condition.wait(lock);
 
-uint8_t* yuvData::getYuvData(bool &bIsStop) {
-	std::unique_lock<std::mutex> yuv_lock(m_yuv_mutex); 
-		
-	yuv_lock.lock();
-
-	if (m_yuv_buffer.empty()) {
-        bIsStop = m_yuv_stop;
-		return nullptr;
+		if (m_should_stop) {
+            return;
+	    }
 	}
 
-	std::unique_ptr<yuvData> data = std::move(m_yuv_buffer.front());
-	m_yuv_buffer.pop_front();
+	m_data_queue.emplace_back(src, src_stride_line, src_pixel_format);
 
-	return data->getData();
+	std::unique_lock<std::mutex> lock(m_queue_mutex);
+	m_queue_condition.notify_one();
 }
-#endif
 
+
+void yuvData::convertThread(){
+    m_should_stop = false;
+
+    while(!m_should_stop) {
+
+        if (m_data_queue.empty()) {
+			std::unique_lock<std::mutex> lock(m_queue_mutex);
+			m_queue_condition.wait(lock);
+			if (m_should_stop) {
+                return;
+	        }
+		}
+
+        src_data data = m_data_queue.front();
+
+        // delete front
+		m_data_queue.pop_front();
+		std::unique_lock<std::mutex> lock(m_queue_mutex);
+		m_queue_condition.notify_one();
+
+		convertToYuv(data.m_data, data.m_stride_line, data.m_pix_fmt);
+
+	}
+}
+
+
+void yuvData::setStop(){
+	std::unique_lock<std::mutex> lock(m_queue_mutex);
+	m_queue_condition.notify_all();
+
+	m_should_stop = true;
+}

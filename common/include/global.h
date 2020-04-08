@@ -29,6 +29,7 @@
 #include <sstream>
 #include <thread>
 #include <vector>
+#include <condition_variable>
 
 
 // undefine problematic ffmpeg macros

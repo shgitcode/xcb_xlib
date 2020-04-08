@@ -75,6 +75,7 @@ public:
 	// This function is thread-safe.
 	double GetFPS();
 
+    uint32_t GetFrameCounter(){return m_frame_counter;}
 	// Returns whether an error has occurred in the input thread.
 	// This function is thread-safe.
 	inline bool HasErrorOccurred() { return m_error_occurred; }

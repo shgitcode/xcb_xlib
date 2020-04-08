@@ -1,7 +1,7 @@
 
 #include "X11Input.h"
 
-#define OPEN_FILE 1
+#define OPEN_FILE 0
 
 // Converts a X11 image format to a format that libav/ffmpeg understands.
 static AVPixelFormat X11ImageGetPixelFormat(XImage* image) {
@@ -25,12 +25,7 @@ static AVPixelFormat X11ImageGetPixelFormat(XImage* image) {
 			break;
 		}
 	}
-	#if 0
-	Logger::LogError("[X11ImageGetPixelFormat] " + Logger::tr("Error: Unsupported X11 image pixel format!") + "\n"
-					 "    bits_per_pixel = " + QString::number(image->bits_per_pixel) + ", red_mask = 0x" + QString::number(image->red_mask, 16)
-					 + ", green_mask = 0x" + QString::number(image->green_mask, 16) + ", blue_mask = 0x" + QString::number(image->blue_mask, 16));
-	//throw X11Exception();
-	#endif
+	
 	return AV_PIX_FMT_NONE;
 }
 
@@ -214,7 +209,9 @@ X11Input::~X11Input() {
 
 	// tell the thread to stop
 	if(m_thread.joinable()) {
-		//Logger::LogInfo("[X11Input::~X11Input] " + Logger::tr("Stopping input thread ..."));
+		std::cout<<"[X11Input::~X11Input] "
+			     <<"Stopping input thread ..."
+			     <<std::endl;
 		m_should_stop = true;
 		m_thread.join();
 	}
@@ -601,7 +598,7 @@ void X11Input::InputThread() {
 			AVPixelFormat x11_image_format = X11ImageGetPixelFormat(m_x11_image);
 
             // Êý¾Ý×ªYUV
-			m_yuv_convert->convertToYuv(image_data, image_stride, x11_image_format);
+			m_yuv_convert->putData(image_data, image_stride, x11_image_format);
 
 			ReadVideoFrame(timestamp);
 			last_timestamp = timestamp;
@@ -643,18 +640,22 @@ void X11Input::InputThread() {
 			#endif
 		}
 
-        std::cout<<"[XcbInput::InputThread] "
+        std::cout<<"[X11Input::InputThread] "
 			     <<" frame counter : "<<m_frame_counter
 			     <<" Input thread stopped......"<<std::endl;
 
 	} catch(const std::exception& e) {
 		m_error_occurred = true;
-        std::cout<<"[XcbInput::InputThread] "
+        std::cout<<"[X11Input::InputThread] "
 			     <<"Exception "<<e.what()
 			     <<" in input thread."<<std::endl;
 	} catch(...) {
 		m_error_occurred = true;
-        std::cout<<"[XcbInput::InputThread] "
+        std::cout<<"[X11Input::InputThread] "
 			     <<"Unknown exception in input thread."<<std::endl;
+	}
+
+	if (m_yuv_convert) {
+		m_yuv_convert->setStop();
 	}
 }

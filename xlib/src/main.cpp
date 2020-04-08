@@ -14,6 +14,7 @@ int main(int argc, char* argv[])
 	
     std::unique_ptr<X11Input> m_x11_input = nullptr;
 
+    int m_sleep = 10;
     unsigned int m_video_x = 0;
 	unsigned int m_video_y = 0;
 	unsigned int m_video_in_width = 1280;
@@ -31,11 +32,13 @@ int main(int argc, char* argv[])
                                    m_video_follow_full_screen));
 
 
-	std::this_thread::sleep_for(std::chrono::seconds(10));
+	std::this_thread::sleep_for(std::chrono::seconds(m_sleep));
 
 	m_x11_input->setStop();
 	
 	std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    std::cout<<"X11 capture end!"<<0x8000000000000000ull<<":"<<0x8000000000000001ull<<std::endl;
+	std::cout<<"x11 capture frame: "<<m_x11_input->GetFrameCounter()/m_sleep<<std::endl;
+
+    //std::cout<<"X11 capture end!"<<0x8000000000000000ull<<":"<<0x8000000000000001ull<<std::endl;
 }
