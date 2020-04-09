@@ -17,8 +17,8 @@ int main(int argc, char* argv[])
     int m_sleep = 10;
     unsigned int m_video_x = 0;
 	unsigned int m_video_y = 0;
-	unsigned int m_video_in_width = 1280;
-	unsigned int m_video_in_height = 720;
+	unsigned int m_video_in_width = 1920;
+	unsigned int m_video_in_height = 1080;
 	unsigned int m_frame_rate = atoi(argv[1]);
 	bool m_video_record_cursor = true;
 	bool m_video_follow_cursor = false;

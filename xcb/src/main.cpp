@@ -16,12 +16,13 @@ int main(int argc, char* argv[])
 
     unsigned int m_video_x = 0;
 	unsigned int m_video_y = 0;
-	unsigned int m_video_in_width = 1280;
-	unsigned int m_video_in_height = 720;
+	unsigned int m_video_in_width = 0;
+	unsigned int m_video_in_height = 0;
 	unsigned int m_video_frame_rate = atoi(argv[1]);;
 	bool m_video_record_cursor = true;
 	bool m_video_follow_cursor = false;
 	bool m_video_follow_full_screen = false;
+	
 	
     m_xcb_input.reset(new XcbInput(m_video_x, m_video_y,
 		                           m_video_in_width, 
@@ -30,10 +31,12 @@ int main(int argc, char* argv[])
 		                           m_video_record_cursor,
                                    m_video_follow_cursor, 
                                    m_video_follow_full_screen));
-
+	
 
 	std::this_thread::sleep_for(std::chrono::seconds(m_sleep));
 
+    std::cout<<"xcb sleep: "<<m_sleep<<std::endl;
+	
 	m_xcb_input->setStop();
 	
 	std::this_thread::sleep_for(std::chrono::seconds(1));

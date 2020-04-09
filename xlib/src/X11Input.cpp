@@ -149,8 +149,10 @@ X11Input::X11Input(unsigned int x,
 	m_follow_cursor = follow_cursor;
 	m_follow_fullscreen = follow_full_screen;
 
-	//add for test
+	// save capture video
 	m_fp = nullptr;
+
+	// frame rate control
 	m_video_frame_rate = frame_rate;
 	m_last_timestamp = std::numeric_limits<int64_t>::min();
 	m_next_timestamp = hrt_time_micro();
@@ -171,24 +173,28 @@ X11Input::X11Input(unsigned int x,
 		lock->m_current_height = m_height;
 	}
 
-	if(m_width == 0 || m_height == 0) {
-		std::cout<<"[X11Input::Construction] Error: Width or height is zero!"<<std::endl;
-		throw X11Exception();
-	}
-	if(m_width > SSR_MAX_IMAGE_SIZE || m_height > SSR_MAX_IMAGE_SIZE) {
-		std::cout<<"[X11Input::Construction] Error: Width or height is too large, the maximum width and height is!"<<SSR_MAX_IMAGE_SIZE<<std::endl;
-		throw X11Exception();
-	}
-
-	std::cout<<"[X11Input::Construction] {x:y}={"<<m_x<<":"<<m_y
-		     <<"} {width:height}={"<<m_width<<":"<<m_height<<"}"<<std::endl;
-
+	
 	try {
 		Init();
 	} catch(...) {
 		Free();
 		throw;
 	}
+
+    if(m_width == 0 || m_height == 0) {
+		std::cout<<"[X11Input::Construction] Error: Width or height is zero!"<<std::endl;
+		throw X11Exception();
+	}
+
+	if(m_width > SSR_MAX_IMAGE_SIZE || m_height > SSR_MAX_IMAGE_SIZE) {
+		std::cout<<"[X11Input::Construction] Error: Width or height is too large, the maximum width and height is!"<<SSR_MAX_IMAGE_SIZE<<std::endl;
+		throw X11Exception();
+	}
+
+	std::cout<<"[X11Input::Construction] {x:y}={"<<m_x<<":"<<m_y
+		     <<"} {width:height}={"<<m_width<<":"<<m_height<<"}"
+			 <<" frame rate="<<m_video_frame_rate<<std::endl;
+
 
 	if (m_yuv_convert == nullptr) {
 	    m_yuv_convert = std::unique_ptr<yuvData>(new yuvData(m_width, m_height, AV_PIX_FMT_YUV420P));
@@ -204,6 +210,7 @@ X11Input::X11Input(unsigned int x,
 	}
 #endif
 }
+
 
 X11Input::~X11Input() {
 
@@ -248,16 +255,16 @@ void X11Input::Init() {
 
 	std::cout<<"Enter [X11Input::Init]"<<std::endl;
 
-	m_x11_display = XOpenDisplay(NULL); //QX11Info::display();
+	m_x11_display = XOpenDisplay(NULL);
 	if(m_x11_display == NULL) {
 		std::cout<<"[X11Input::Init] Error: Can't open X display!"<<std::endl;
 		throw X11Exception();
 	}
 	
-	m_x11_screen = DefaultScreen(m_x11_display); //QX11Info::appScreen();
-	m_x11_root = RootWindow(m_x11_display, m_x11_screen); //QX11Info::appRootWindow(m_x11_screen);
-	m_x11_visual = DefaultVisual(m_x11_display, m_x11_screen); //(Visual*) QX11Info::appVisual(m_x11_screen);
-	m_x11_depth = DefaultDepth(m_x11_display, m_x11_screen); //QX11Info::appDepth(m_x11_screen);
+	m_x11_screen = DefaultScreen(m_x11_display);
+	m_x11_root = RootWindow(m_x11_display, m_x11_screen);
+	m_x11_visual = DefaultVisual(m_x11_display, m_x11_screen);
+	m_x11_depth = DefaultDepth(m_x11_display, m_x11_screen);
 
 	m_x11_use_shm = XShmQueryExtension(m_x11_display);
 	if(m_x11_use_shm) {
@@ -357,8 +364,13 @@ void X11Input::UpdateScreenConfiguration() {
 		int num_screens;
 		XineramaScreenInfo *screens = XineramaQueryScreens(m_x11_display, &num_screens);
 		try {
+			// Screen
 			for(int i = 0; i < num_screens; ++i) {
 				m_screen_rects.emplace_back(screens[i].x_org, screens[i].y_org, screens[i].x_org + screens[i].width, screens[i].y_org + screens[i].height);
+				std::cout<<"[X11Input::UpdateScreenConfiguration] " <<"Screen num:"<<i
+	                     <<" Screen {x:y}={"<<screens[i].x_org<<":"<<screens[i].y_org<<"} "
+	                     <<" Screen {width:height}={"<<screens[i].width<<":"<<screens[i].height<<"} "
+	                     <<std::endl;
 			}
 		} catch(...) {
 			XFree(screens);
@@ -366,17 +378,17 @@ void X11Input::UpdateScreenConfiguration() {
 		}
 		XFree(screens);
 	} else {
-	    std::cout<<"[X11Input::Init] Warning: Xinerama is not supported by X server, multi-monitor support may not work properly."<<std::endl;
+	    std::cout<<"[X11Input::UpdateScreenConfiguration] Warning: Xinerama is not supported by X server, multi-monitor support may not work properly."<<std::endl;
 		return;
 	}
 
 	// make sure that we have at least one monitor
 	if(m_screen_rects.size() == 0) {
-	    std::cout<<"[X11Input::Init] Warning: No monitors detected, multi-monitor support may not work properly."<<std::endl;
+	    std::cout<<"[X11Input::UpdateScreenConfiguration] Warning: No monitors detected, multi-monitor support may not work properly."<<std::endl;
 		return;
 	}
 
-	std::cout<<"[X11Input::Init] multi-monitor:"<<m_screen_rects.size()<<std::endl;
+	std::cout<<"[X11Input::UpdateScreenConfiguration] multi-monitor Screen num:"<<m_screen_rects.size()<<std::endl;
 
 	// calculate bounding box
 	m_screen_bbox = m_screen_rects[0];
@@ -401,12 +413,6 @@ void X11Input::UpdateScreenConfiguration() {
 		throw X11Exception();
 	}
 
-	/*qDebug() << "m_screen_rects:";
-	for(Rect &rect : m_screen_rects) {
-		qDebug() << "    rect" << rect.m_x1 << rect.m_y1 << rect.m_x2 << rect.m_y2;
-	}
-	qDebug() << "m_screen_bbox:";
-	qDebug() << "    rect" << m_screen_bbox.m_x1 << m_screen_bbox.m_y1 << m_screen_bbox.m_x2 << m_screen_bbox.m_y2;*/
 
 	std::cout<<"[X11Input::UpdateScreenConfiguration] box: "
 			 <<"{tx:ty}={"<<m_screen_bbox.m_x1<<":"<<m_screen_bbox.m_y1<<"} "
@@ -416,10 +422,7 @@ void X11Input::UpdateScreenConfiguration() {
 	// calculate dead space
 	m_screen_dead_space = {m_screen_bbox};
 	for(size_t i = 0; i < m_screen_rects.size(); ++i) {
-		/*qDebug() << "PARTIAL m_screen_dead_space:";
-		for(Rect &rect : m_screen_dead_space) {
-			qDebug() << "    rect" << rect.m_x1 << rect.m_y1 << rect.m_x2 << rect.m_y2;
-		}*/
+		
 		Rect &subtract = m_screen_rects[i];
 		
 		std::cout<<"[X11Input::UpdateScreenConfiguration] sub: "
@@ -462,10 +465,13 @@ void X11Input::UpdateScreenConfiguration() {
 		m_screen_dead_space = std::move(result);
 	}
 
-	/*qDebug() << "m_screen_dead_space:";
-	for(Rect &rect : m_screen_dead_space) {
-		qDebug() << "    rect" << rect.m_x1 << rect.m_y1 << rect.m_x2 << rect.m_y2;
-	}*/
+
+    if ((m_width == 0) || (m_width > m_screen_bbox.m_x2)) {
+		m_width =  m_screen_bbox.m_x2;
+	}
+	if ((m_height == 0) || (m_height > m_screen_bbox.m_y2)) {
+		m_height =  m_screen_bbox.m_y2;
+	}
 
 }
 

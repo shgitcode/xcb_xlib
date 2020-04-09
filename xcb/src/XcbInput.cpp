@@ -38,12 +38,14 @@ XcbInput::XcbInput(unsigned int x,
 	m_follow_cursor = follow_cursor;
 	m_follow_fullscreen = follow_full_screen;
 
+    m_should_stop = false;
     //
     std::cout<<TEST_SYN<<std::endl;
 	std::cout<<"============="<<std::endl;
 	std::cout<<USE_TEST_SYN<<std::endl;
 	//add
 	m_fp = nullptr;
+    // frame rate controll
 	m_video_frame_rate = frame_rate;
 	m_last_timestamp = std::numeric_limits<int64_t>::min();
 	m_next_timestamp = hrt_time_micro();
@@ -61,7 +63,14 @@ XcbInput::XcbInput(unsigned int x,
 		lock->m_current_height = m_height;
 	}
 
-	if(m_width == 0 || m_height == 0) {
+	try {
+		Init();
+	} catch(...) {
+		xcbgrab_read_close();
+		throw;
+	}
+
+    if(m_width == 0 || m_height == 0) {
 		std::cout<<"[XcbInput::Init] Error: "
 			     <<"Width or height is zero!"
 			     <<std::endl;
@@ -79,14 +88,7 @@ XcbInput::XcbInput(unsigned int x,
 
 	std::cout<<"[XcbInput::Init] {x:y}={"<<m_x<<":"<<m_y
 		     <<"} {width:height}={"<<m_width<<":"<<m_height<<"}"
-		     <<std::endl;
-
-	try {
-		Init();
-	} catch(...) {
-		xcbgrab_read_close();
-		throw;
-	}
+             <<" frame rate="<<m_video_frame_rate<<std::endl;
 
 	// open file
 	#if OPEN_FILE
@@ -96,8 +98,8 @@ XcbInput::XcbInput(unsigned int x,
 		std::cout<<" open xcb.yuv error!"<<std::endl;
 	}
 	#endif
-
 }
+
 
 XcbInput::~XcbInput() {
 
@@ -156,6 +158,7 @@ void XcbInput::Init() {
 	// start input thread
 	m_should_stop = false;
 	m_error_occurred = false;
+    std::cout<<"[XcbInput::Init] call InputThread"<<std::endl;
 	m_thread = std::thread(&XcbInput::InputThread, this);
 
 }
@@ -356,6 +359,14 @@ int XcbInput::check_position(int *pix_fmt)
     gc  = xcb_get_geometry(m_xcb_conn, m_xcb_screen->root);
     geo = xcb_get_geometry_reply(m_xcb_conn, gc, NULL);
 
+    if ((m_width == 0) || (m_width > geo->width)) {
+		m_width = geo->width;
+	}
+
+	if ((m_height == 0) || (m_height > geo->height)) {
+		m_height = geo->height;
+	}
+
     if (m_x + m_width > geo->width ||
         m_y + m_height > geo->height) {
 		std::cout<< "Capture area: "<<m_width<<"x"<<m_height
@@ -364,6 +375,11 @@ int XcbInput::check_position(int *pix_fmt)
 				 <<std::endl;
         return -1;
     }
+
+    std::cout<< "Capture area: "<<m_width<<"x"<<m_height
+			 << " at position: "<<m_x<<"."<<m_y
+			 << " Screen size: "<<geo->width<<"x"<<geo->height
+			 << std::endl;
 
 	*pix_fmt = 0;
 	m_stride_line = 0;
@@ -638,8 +654,7 @@ int XcbInput::xcbgrab_read_header()
         return -1;
     }
 
-	std::cout<<"The screen number: "
-		     <<m_xcb_screen_num<<std::endl;
+	std::cout<<"The screen number: "<<m_xcb_screen_num<<std::endl;
 
     // 3. 检测范围,确定采集格式
     ret = check_position(&m_pix_fmt);
